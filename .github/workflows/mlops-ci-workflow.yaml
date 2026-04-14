@@ -2,7 +2,7 @@ name: MlOps ci
 
 on:
   push:
-    branch: 
+    branches:
       - main
 
   pull_request:
@@ -10,50 +10,66 @@ on:
       - main
 
 jobs:
-  build:
+  e2e_mlops_workflow:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11.9'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Run data processing
-      run: |
-        python src/data/run_processing.py \
-          --input data/raw/house_data.csv \
-          --output data/processed/cleaned_house_data.csv
+      - name: Run data processing
+        run: |
+          python src/data/run_processing.py \
+            --input data/raw/house_data.csv \
+            --output data/processed/cleaned_house_data.csv
 
-    - name: Do feature engineering
-      run: |
-        python src/features/engineer.py \
-          --input data/processed/cleaned_house_data.csv \
-          --output data/processed/featured_house_data.csv \
-          --preprocessor models/trained/preprocessor.pkl
+      - name: Do feature engineering
+        run: |
+          python src/features/engineer.py \
+            --input data/processed/cleaned_house_data.csv \
+            --output data/processed/featured_house_data.csv \
+            --preprocessor models/trained/preprocessor.pkl
 
-    - name: Setup Mlflow
-      run: |
-        docker pull ghcr.io/mlflow/mlflow:latest
-        docker run -d -p 5000:5000 --name mlflow-server ghcr.io/mlflow/mlflow:latest mlflow server --host 0.0.0.0 --backend-store-uri sqlite:////tmp/mlflow.db --default-artifact-root /tmp/mlruns &
-        
-    - name: Train model
-      run: |
-        python src/models/train_model.py \
-          --config configs/model_config.yaml \
-          --data data/processed/featured_house_data.csv \
-          --models-dir models --mlflow-tracking-uri http://localhost:5000
+      - name: Setup Mlflow
+        run: |
+          docker pull ghcr.io/mlflow/mlflow:latest
+          docker run -d -p 5000:5000 --name mlflow-server ghcr.io/mlflow/mlflow:latest mlflow server --host 0.0.0.0 --backend-store-uri sqlite:////tmp/mlflow.db --default-artifact-root /tmp/mlruns &
 
-    - name: cleaning up mlflow server
-      run: |
-        docker stop mlflow-server
-        docker rm mlflow-server
-        docker rmi ghcr.io/mlflow/mlflow:latest
+      - name: Train model
+        run: |
+          python src/models/train_model.py \
+            --config configs/model_config.yaml \
+            --data data/processed/featured_house_data.csv \
+            --models-dir models --mlflow-tracking-uri http://localhost:5000
+
+      - name: cleaning up mlflow server
+        run: |
+          docker stop mlflow-server
+          docker rm mlflow-server
+          docker rmi ghcr.io/mlflow/mlflow:latest
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ vars.DOCKER_USERNAME }}/fastapi:${{ github.sha }}
