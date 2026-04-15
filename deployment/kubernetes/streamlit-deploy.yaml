@@ -21,4 +21,6 @@ spec:
       - image: mehmoodhaq7/streamlit:latest
         name: streamlit
         resources: {}
+        ports:
+        - containerPort: 8501
 status: {}
