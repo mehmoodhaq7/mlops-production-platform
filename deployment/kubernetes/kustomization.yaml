@@ -1,15 +1,17 @@
-﻿apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - model-deploy.yaml
-  - model-svc.yaml
-  - streamlit-deploy.yaml
-  - streamlit-svc.yaml
-  - fastapi-scaledobject.yaml
+- model-deploy.yaml
+- model-svc.yaml
+- streamlit-deploy.yaml
+- streamlit-svc.yaml
+- fastapi-scaledobject.yaml
 
 images:
-  - name: mehmoodhaq7/house-price-model
-    newTag: latest
-  - name: mehmoodhaq7/streamlit
-    newTag: latest
+- name: mehmoodhaq7/house-price-model
+  newName: mehmoodhaq7/house-price-model
+  newTag: 128fbd6
+- name: mehmoodhaq7/streamlit
+  newName: mehmoodhaq7/streamlit
+  newTag: 128fbd6
+apiVersion: kustomize.config.k8s.io/v1beta1
