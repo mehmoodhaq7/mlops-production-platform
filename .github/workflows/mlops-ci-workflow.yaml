@@ -121,40 +121,17 @@ jobs:
   build-and-publish:
     needs: model-training
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Download trained model
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: trained-model
           path: models/
-
-      - name: Download preprocessor
-        uses: actions/download-artifact@v4
-        with:
-          name: preprocessor
-          path: models/trained/
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and test Docker image
-        run: |
-          COMMIT_HASH=$(echo ${{ github.sha }} | cut -c1-7)
-          docker build -t docker.io/${{ vars.DOCKER_USERNAME }}/house-price-model:$COMMIT_HASH -f Dockerfile .
-          docker run -d -p 8000:8000 --name test-api docker.io/${{ vars.DOCKER_USERNAME }}/house-price-model:$COMMIT_HASH
-          for i in {1..10}; do
-            curl -f http://localhost:8000/health && break || sleep 5;
-          done
-          docker logs test-api
-
-      - name: Clean up test container
-        run: |
-          docker stop test-api || true
-          docker rm test-api || true
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -162,9 +139,29 @@ jobs:
           username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Push Docker image to DockerHub
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Build & Push Model Image
         run: |
-          COMMIT_HASH=$(echo ${{ github.sha }} | cut -c1-7)
-          docker tag docker.io/${{ vars.DOCKER_USERNAME }}/house-price-model:$COMMIT_HASH docker.io/${{ vars.DOCKER_USERNAME }}/house-price-model:latest
-          docker push docker.io/${{ vars.DOCKER_USERNAME }}/house-price-model:$COMMIT_HASH
-          docker push docker.io/${{ vars.DOCKER_USERNAME }}/house-price-model:latest
+          docker build -t ${{ vars.DOCKER_USERNAME }}/house-price-model:${{ env.IMAGE_TAG }} -f Dockerfile .
+          docker push ${{ vars.DOCKER_USERNAME }}/house-price-model:${{ env.IMAGE_TAG }}
+
+      - name: Build & Push Streamlit Image
+        run: |
+          docker build -t ${{ vars.DOCKER_USERNAME }}/streamlit:${{ env.IMAGE_TAG }} -f streamlit_app/Dockerfile streamlit_app/
+          docker push ${{ vars.DOCKER_USERNAME }}/streamlit:${{ env.IMAGE_TAG }}
+
+      - name: Update Kustomize
+        run: |
+          cd deployment/kubernetes
+          kustomize edit set image ${{ vars.DOCKER_USERNAME }}/house-price-model=${{ vars.DOCKER_USERNAME }}/house-price-model:${{ env.IMAGE_TAG }}
+          kustomize edit set image ${{ vars.DOCKER_USERNAME }}/streamlit=${{ vars.DOCKER_USERNAME }}/streamlit:${{ env.IMAGE_TAG }}
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add deployment/kubernetes/kustomization.yaml
+          git commit -m "chore: deploy version ${{ env.IMAGE_TAG }} [skip ci]"
+          git push origin main
