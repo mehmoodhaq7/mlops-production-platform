@@ -7,3 +7,9 @@ resources:
   - streamlit-deploy.yaml
   - streamlit-svc.yaml
   - fastapi-scaledobject.yaml
+
+images:
+  - name: mehmoodhaq7/house-price-model
+    newTag: latest
+  - name: mehmoodhaq7/streamlit
+    newTag: latest
