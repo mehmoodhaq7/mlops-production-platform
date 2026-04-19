@@ -13,6 +13,6 @@ spec:
       - default
   endpoints:
     - port: metrics
-      path: /
+      path: /metrics
       interval: 15s
       scrapeTimeout: 10s
