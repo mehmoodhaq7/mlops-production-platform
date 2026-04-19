@@ -43,7 +43,7 @@ metrics_thread = threading.Thread(target=start_metrics_server, daemon=True)
 metrics_thread.start()
 
 # Initialize and instrument Prometheus metrics
-Instrumentator().instrument(app).expose(app)
+Instrumentator().instrument(app)
 
 # Health check endpoint
 @app.get("/health", response_model=dict)
